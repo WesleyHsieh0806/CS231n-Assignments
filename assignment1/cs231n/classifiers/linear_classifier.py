@@ -33,7 +33,8 @@ class LinearClassifier(object):
         A list containing the value of the loss function at each training iteration.
         """
         num_train, dim = X.shape
-        num_classes = np.max(y) + 1 # assume y takes values 0...K-1 where K is number of classes
+        # assume y takes values 0...K-1 where K is number of classes
+        num_classes = np.max(y) + 1
         if self.W is None:
             # lazily initialize W
             self.W = 0.001 * np.random.randn(dim, num_classes)
@@ -57,11 +58,17 @@ class LinearClassifier(object):
             #########################################################################
             # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-            pass
-
+            # Randomly select the data indices from dataset
+            # There may be repeated data if we choose data with replacement
+            # However, sampling will be faster with replacement
+            batch_data_indices = np.random.choice(
+                np.arange(len(X)), batch_size)
+            # extract the batch data from the dataset
+            X_batch = X[batch_data_indices]
+            y_batch = y[batch_data_indices]
             # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-            # evaluate loss and gradient
+            # evaluate loss and gradient(by predefined svm_loss_vectorized)
             loss, grad = self.loss(X_batch, y_batch, reg)
             loss_history.append(loss)
 
@@ -72,7 +79,7 @@ class LinearClassifier(object):
             #########################################################################
             # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-            pass
+            self.W = self.W - learning_rate*grad
 
             # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
@@ -102,7 +109,8 @@ class LinearClassifier(object):
         ###########################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        Scores = X.dot(self.W)
+        y_pred = np.argmax(Scores, axis=1)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         return y_pred
@@ -122,7 +130,7 @@ class LinearClassifier(object):
         - loss as a single float
         - gradient with respect to self.W; an array of the same shape as W
         """
-        pass
+        return svm_loss_vectorized(self.W, X_batch, y_batch, reg)
 
 
 class LinearSVM(LinearClassifier):

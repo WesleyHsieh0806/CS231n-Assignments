@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from past.builtins import xrange
 
+
 class TwoLayerNet(object):
     """
     A two-layer fully-connected neural network. The net has an input dimension of
@@ -37,6 +38,7 @@ class TwoLayerNet(object):
         - hidden_size: The number of neurons H in the hidden layer.
         - output_size: The number of classes C.
         """
+        # save the parameter in dictionary(which is the same as Pytorch)
         self.params = {}
         self.params['W1'] = std * np.random.randn(input_size, hidden_size)
         self.params['b1'] = np.zeros(hidden_size)
@@ -80,7 +82,14 @@ class TwoLayerNet(object):
         #############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        ''' FC-RELU-FC(scores are the outputs of FC)-Softmax'''
+        # compute output of fully connected network
+        # h1_in : input of hidden layer
+        h1_in = X.dot(W1) + b1
+        # compute the output of activation function-ReLU
+        h1_out = np.maximum(0, h1_in)
+        # compute the output of fully connected network
+        scores = h1_out.dot(W2) + b2
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
@@ -98,7 +107,21 @@ class TwoLayerNet(object):
         #############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        '''Forward pass- Softmax'''
+        # shift the value by np.max(scores) to prevent value instability
+        # this may cause the gradients to be different than how we compute.
+        # For convenience, we will just ignore this difference
+        scores -= np.max(scores)
+        exp_scores = np.exp(scores)
+        denominator = np.sum(exp_scores, axis=1, keepdims=1)
+        softmax_scores = exp_scores/denominator
+        ''' Compute the loss'''
+        # loss from softmax_scores.
+        loss = np.sum(-np.log(softmax_scores[np.arange(N), y]))
+        loss /= N
+        # loss from regularization term
+        loss += reg * np.sum(W1**2)
+        loss += reg * np.sum(W2**2)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
@@ -111,8 +134,43 @@ class TwoLayerNet(object):
         #############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        '''initialize the grads dictionary'''
+        grads['W1'] = np.zeros(W1.shape)
+        grads['b1'] = np.zeros(b1.shape)
+        grads['W2'] = np.zeros(W2.shape)
+        grads['b2'] = np.zeros(b2.shape)
+        ''' 
+        * Compute the gradient of scores(the output of FC connected layer)
+        * shape:(N, C)
+        '''
+        dscores = softmax_scores.copy()
+        # Subtract 1 from the gradients of the true_class scores
+        # scores are the input of softmax layers
+        dscores[np.arange(N), y] -= 1
+        dscores /= N
+        ''' Compute the gradient of b2:(C,)'''
+        grads['b2'] += np.sum(dscores, axis=0)
 
+        ''' compute the gradient of w2 '''
+        grads['W2'] += h1_out.T.dot(dscores)
+
+        ''' Compute the gradient of b1'''
+        # h1_out @ W2 + b2 = scores
+        # As a result, dh1_out = dscores @ W2.T
+        dh1_out = dscores.dot(W2.T)
+
+        # h1_out = ReLU(h1_int)
+        # As a result, dh1_int = dh1_out if h1_in >0
+        dh1_in = dh1_out.copy()
+        dh1_in[h1_in <= 0] = 0
+
+        # h1_in = X@W1 + b1 -- Now we can compute the gradient of W1 and b1
+        grads['b1'] += np.sum(dh1_in, axis=0)
+        grads['W1'] += X.T.dot(dh1_in)
+
+        # gradient from regularization term
+        grads['W1'] += 2*reg*W1
+        grads['W2'] += 2*reg*W2
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
         return loss, grads
@@ -139,7 +197,7 @@ class TwoLayerNet(object):
         - verbose: boolean; if true print progress during optimization.
         """
         num_train = X.shape[0]
-        iterations_per_epoch = max(num_train / batch_size, 1)
+        iterations_per_epoch = int(max(num_train / batch_size, 1))
 
         # Use SGD to optimize the parameters in self.model
         loss_history = []
@@ -156,13 +214,15 @@ class TwoLayerNet(object):
             #########################################################################
             # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-            pass
+            batch_index = np.random.choice(np.arange(num_train), batch_size)
+            X_batch = X[batch_index]
+            y_batch = y[batch_index]
 
             # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
             # Compute loss and gradients using the current minibatch
             loss, grads = self.loss(X_batch, y=y_batch, reg=reg)
-            loss_history.append(loss)
+            # loss_history.append(loss)
 
             #########################################################################
             # TODO: Use the gradients in the grads dictionary to update the         #
@@ -172,15 +232,17 @@ class TwoLayerNet(object):
             #########################################################################
             # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-            pass
+            for param_name in self.params:
+                self.params[param_name] -= learning_rate*grads[param_name]
 
             # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-
             if verbose and it % 100 == 0:
                 print('iteration %d / %d: loss %f' % (it, num_iters, loss))
-
             # Every epoch, check train and val accuracy and decay learning rate.
             if it % iterations_per_epoch == 0:
+
+                # append loss here
+                loss_history.append(loss)
                 # Check accuracy
                 train_acc = (self.predict(X_batch) == y_batch).mean()
                 val_acc = (self.predict(X_val) == y_val).mean()
@@ -191,9 +253,9 @@ class TwoLayerNet(object):
                 learning_rate *= learning_rate_decay
 
         return {
-          'loss_history': loss_history,
-          'train_acc_history': train_acc_history,
-          'val_acc_history': val_acc_history,
+            'loss_history': loss_history,
+            'train_acc_history': train_acc_history,
+            'val_acc_history': val_acc_history,
         }
 
     def predict(self, X):
@@ -217,8 +279,9 @@ class TwoLayerNet(object):
         # TODO: Implement this function; it should be VERY simple!                #
         ###########################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-
-        pass
+        # self.loss(X) returns the scores.
+        # We choose the classes which achieves the maximum scores as predicted results.
+        y_pred = np.argmax(self.loss(X), axis=1)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 

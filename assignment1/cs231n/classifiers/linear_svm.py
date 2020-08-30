@@ -3,6 +3,7 @@ import numpy as np
 from random import shuffle
 from past.builtins import xrange
 
+
 def svm_loss_naive(W, X, y, reg):
     """
     Structured SVM loss function, naive implementation (with loops).
@@ -21,7 +22,7 @@ def svm_loss_naive(W, X, y, reg):
     - loss as single float
     - gradient with respect to weights W; an array of same shape as W
     """
-    dW = np.zeros(W.shape) # initialize the gradient as zero
+    dW = np.zeros(W.shape)  # initialize the gradient as zero
 
     # compute the loss and the gradient
     num_classes = W.shape[1]
@@ -33,14 +34,21 @@ def svm_loss_naive(W, X, y, reg):
         for j in range(num_classes):
             if j == y[i]:
                 continue
-            margin = scores[j] - correct_class_score + 1 # note delta = 1
+            margin = scores[j] - correct_class_score + 1  # note delta = 1
             if margin > 0:
                 loss += margin
+                # dw:(Din, num_classes)
+                # loss = max(Sj - Strue +1, 0)
+                # This case only considers loss caused by score j of sample i;
+                # as a result, we only need to compute the gradient causes by Sj and Sy[i]
+                # dL/dSj = 1 dSj/dWk,j = sigma(xi,k) (1<=i<=num_sample, 1<=k<=D)
+                dW[:, j] += X[i, :]
+                dW[:, y[i]] -= X[i, :]
 
     # Right now the loss is a sum over all training examples, but we want it
     # to be an average instead so we divide by num_train.
     loss /= num_train
-
+    dW /= num_train
     # Add regularization to the loss.
     loss += reg * np.sum(W * W)
 
@@ -53,13 +61,13 @@ def svm_loss_naive(W, X, y, reg):
     # code above to compute the gradient.                                       #
     #############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-
-    pass
-
+    # the gradient from regularization term
+    dW += reg*2*W
+    # the gradient from the loss function should be computed with the loss above,
+    # so we just modify the code above
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-    
-    return loss, dW
 
+    return loss, dW
 
 
 def svm_loss_vectorized(W, X, y, reg):
@@ -69,7 +77,7 @@ def svm_loss_vectorized(W, X, y, reg):
     Inputs and outputs are the same as svm_loss_naive.
     """
     loss = 0.0
-    dW = np.zeros(W.shape) # initialize the gradient as zero
+    dW = np.zeros(W.shape)  # initialize the gradient as zero
 
     #############################################################################
     # TODO:                                                                     #
@@ -78,7 +86,20 @@ def svm_loss_vectorized(W, X, y, reg):
     #############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    Scores = X.dot(W)
+    # correct_score:(num_sample, )
+    correct_scores = Scores[np.arange(len(y)), y]
+    # all_loss : same shape as Scores
+    all_loss = np.maximum(0, Scores - correct_scores.reshape(-1, 1) + 1)
+    # cancel the loss from true class
+    # all_loss:(num_sample, num_classes) all_loss[i][j] indicates loss caused by scorei,j
+    all_loss[np.arange(len(y)), y] = 0
+    # Sum up the loss and divide it by num_sample
+    loss += np.sum(all_loss)
+    loss /= X.shape[0]
+
+    # Add the Regularization term to the loss
+    loss += reg*np.sum(W**2)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
@@ -93,8 +114,18 @@ def svm_loss_vectorized(W, X, y, reg):
     #############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    dW += 2*reg*W
+    ''' Use Matrix Caculus to compute dW '''
+    # first, compute dScores
+    dScores = np.ones(Scores.shape)
+    dScores[all_loss > 0] = 1
+    # notice that dScores_trueclass should be accumulated
+    dScores[np.arange(len(y)), y] -= np.sum((all_loss > 0), axis=1)
 
+    # Second, compute dW by matrix caculus
+    dW = X.T@dScores
+    # divide dW by num_sample
+    dW /= X.shape[0]
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
     return loss, dW
